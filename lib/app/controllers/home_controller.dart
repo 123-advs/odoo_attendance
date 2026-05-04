@@ -1,12 +1,16 @@
 import 'dart:async';
 
+import 'package:awesome_dialog/awesome_dialog.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:get/get.dart' hide FormData, MultipartFile, Response;
 import 'package:intl/intl.dart';
 
+import '../data/models/face_record.dart';
 import '../data/providers/odoo_provider.dart';
+import '../routes/app_routes.dart';
 import '../views/profile/profile_controller.dart';
+import '../widgets/app_dialog.dart';
 import '../widgets/app_notify.dart';
 
 class HomeController extends GetxController {
@@ -100,16 +104,36 @@ class HomeController extends GetxController {
       return;
     }
 
+    // Guard: must have enrolled face before check-in/out.
+    if (!_profile.faceEnrolled.value ||
+        _profile.faceEmbedding.value == null) {
+      final goEnroll = await AppDialog.confirm(
+        title: 'Chưa đăng ký khuôn mặt',
+        message:
+            'Bạn cần đăng ký khuôn mặt một lần trước khi chấm công. Đăng ký ngay?',
+        confirmLabel: 'Đăng ký',
+        cancelLabel: 'Để sau',
+        type: DialogType.info,
+      );
+      if (goEnroll) {
+        Get.toNamed(AppRoutes.faceEnroll);
+      }
+      return;
+    }
+
+    final isOut = hasCheckedIn;
+
+    // Open face capture screen and wait for verdict. Returns null
+    // if user cancels or hits the max-attempts wall.
+    final result = await Get.toNamed<dynamic>(
+      AppRoutes.faceCapture,
+      arguments: {'intent': isOut ? 'out' : 'in'},
+    );
+    if (result is! FaceCaptureResult) return;
+
     isProcessing.value = true;
     try {
-      if (!hasCheckedIn) {
-        final newId = await _provider.checkInAttendance(empId);
-        debugPrint('[Home] check-in ok, attendance id=$newId');
-        AppNotify.success(
-          'Đã chấm công',
-          'Bắt đầu ca làm việc lúc ${DateFormat('HH:mm').format(DateTime.now())}.',
-        );
-      } else {
+      if (isOut) {
         final lastId = lastAttendanceId.value;
         if (lastId == null) {
           AppNotify.error(
@@ -118,11 +142,28 @@ class HomeController extends GetxController {
           );
           return;
         }
-        await _provider.checkOutAttendance(lastId);
-        debugPrint('[Home] check-out ok, attendance id=$lastId');
+        await _provider.checkOutAttendance(
+          lastId,
+          faceImage: result.selfieJpeg,
+          matchScore: result.matchScore,
+        );
+        debugPrint('[Home] check-out ok, attendance id=$lastId, '
+            'score=${result.matchScore.toStringAsFixed(3)}');
         AppNotify.success(
           'Đã check-out',
           'Hoàn tất ca lúc ${DateFormat('HH:mm').format(DateTime.now())}.',
+        );
+      } else {
+        final newId = await _provider.checkInAttendance(
+          empId,
+          faceImage: result.selfieJpeg,
+          matchScore: result.matchScore,
+        );
+        debugPrint('[Home] check-in ok, attendance id=$newId, '
+            'score=${result.matchScore.toStringAsFixed(3)}');
+        AppNotify.success(
+          'Đã chấm công',
+          'Bắt đầu ca làm việc lúc ${DateFormat('HH:mm').format(DateTime.now())}.',
         );
       }
       await refreshAttendance();

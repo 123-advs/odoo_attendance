@@ -1,3 +1,7 @@
+import 'dart:convert';
+
+import 'attendance_model.dart' show parseOdooDateTime;
+
 class EmployeeModel {
   EmployeeModel({
     required this.id,
@@ -6,6 +10,9 @@ class EmployeeModel {
     this.jobTitle,
     this.department,
     this.mobilePhone,
+    this.faceEnrolled = false,
+    this.faceEmbedding,
+    this.faceEnrolledAt,
   });
 
   final int id;
@@ -14,6 +21,14 @@ class EmployeeModel {
   final String? jobTitle;
   final String? department;
   final String? mobilePhone;
+
+  /// Computed on Odoo side from `face_embedding` non-null/non-empty.
+  final bool faceEnrolled;
+
+  /// L2-normalized 192-d vector parsed from `face_embedding` JSON.
+  /// Null when employee hasn't enrolled or the JSON is malformed.
+  final List<double>? faceEmbedding;
+  final DateTime? faceEnrolledAt;
 
   factory EmployeeModel.fromJson(Map<String, dynamic> json) {
     return EmployeeModel(
@@ -24,6 +39,9 @@ class EmployeeModel {
       department: _m2oName(json['department_id']),
       mobilePhone:
           _str(json['mobile_phone']) ?? _str(json['work_phone']),
+      faceEnrolled: json['face_enrolled'] == true,
+      faceEmbedding: _parseEmbedding(json['face_embedding']),
+      faceEnrolledAt: parseOdooDateTime(json['face_enrolled_at']),
     );
   }
 
@@ -40,6 +58,24 @@ class EmployeeModel {
       final s = v[1]?.toString();
       if (s == null || s.isEmpty) return null;
       return s;
+    }
+    return null;
+  }
+
+  static List<double>? _parseEmbedding(dynamic v) {
+    if (v == null || v == false) return null;
+    final s = v.toString();
+    if (s.isEmpty) return null;
+    try {
+      final decoded = jsonDecode(s);
+      if (decoded is List) {
+        return decoded
+            .whereType<num>()
+            .map((n) => n.toDouble())
+            .toList(growable: false);
+      }
+    } catch (_) {
+      // malformed JSON in DB — treat as not enrolled
     }
     return null;
   }

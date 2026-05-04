@@ -34,6 +34,11 @@ class ProfileController extends GetxController {
   final phone = ''.obs;
   final avatarBytes = Rxn<Uint8List>();
 
+  // Face ID state mirrored from hr.employee.
+  final faceEnrolled = false.obs;
+  final faceEmbedding = Rxn<List<double>>();
+  final faceEnrolledAt = Rxn<DateTime>();
+
   final isLoading = true.obs;
   final loadError = RxnString();
   final appVersion = ''.obs;
@@ -69,11 +74,17 @@ class ProfileController extends GetxController {
         role.value = emp.jobTitle ?? 'Nhân viên';
         department.value = emp.department ?? '';
         phone.value = emp.mobilePhone ?? '';
+        faceEnrolled.value = emp.faceEnrolled;
+        faceEmbedding.value = emp.faceEmbedding;
+        faceEnrolledAt.value = emp.faceEnrolledAt;
         // Fetch + transcode avatar in background so the UI shows other fields immediately.
         unawaited(_fetchAvatar(emp.id));
         return;
       }
       employeeId.value = null;
+      faceEnrolled.value = false;
+      faceEmbedding.value = null;
+      faceEnrolledAt.value = null;
 
       final user = await _provider.fetchCurrentUser();
       if (user != null) {

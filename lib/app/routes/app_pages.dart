@@ -3,6 +3,10 @@ import 'package:get/get.dart';
 import '../controllers/home_controller.dart';
 import '../views/change_password/change_password_controller.dart';
 import '../views/change_password/change_password_view.dart';
+import '../views/face_capture/face_capture_controller.dart';
+import '../views/face_capture/face_capture_view.dart';
+import '../views/face_enroll/face_enroll_controller.dart';
+import '../views/face_enroll/face_enroll_view.dart';
 import '../views/login/login_controller.dart';
 import '../views/login/login_view.dart';
 import '../views/main/main_controller.dart';
@@ -62,6 +66,20 @@ abstract class AppPages {
       page: () => const ChangePasswordView(),
       binding: BindingsBuilder(() {
         Get.put(ChangePasswordController());
+      }),
+    ),
+    GetPage(
+      name: AppRoutes.faceEnroll,
+      page: () => const FaceEnrollView(),
+      binding: BindingsBuilder(() {
+        Get.put(FaceEnrollController());
+      }),
+    ),
+    GetPage(
+      name: AppRoutes.faceCapture,
+      page: () => const FaceCaptureView(),
+      binding: BindingsBuilder(() {
+        Get.put(FaceCaptureController());
       }),
     ),
   ];

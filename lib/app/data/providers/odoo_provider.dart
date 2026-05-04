@@ -1,7 +1,11 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
 import 'package:dio/dio.dart';
 import 'package:get/get.dart' hide FormData, MultipartFile, Response;
 
 import '../../core/constants/api_constants.dart';
+import '../../core/constants/face_constants.dart';
 import '../../services/api_service.dart';
 import '../../services/storage_service.dart';
 import '../models/attendance_model.dart';
@@ -120,14 +124,28 @@ class OdooProvider {
     return const [];
   }
 
-  Future<int> checkInAttendance(int employeeId) async {
+  Future<int> checkInAttendance(
+    int employeeId, {
+    Uint8List? faceImage,
+    double? matchScore,
+  }) async {
     final ts = formatOdooDateTime(DateTime.now());
+    final vals = <String, dynamic>{
+      'employee_id': employeeId,
+      'check_in': ts,
+    };
+    if (faceImage != null) {
+      vals['face_image_in'] = base64Encode(faceImage);
+    }
+    if (matchScore != null) {
+      vals['face_match_score_in'] = matchScore;
+      vals['face_verified_in'] =
+          matchScore >= FaceConstants.matchThreshold;
+    }
     final result = await callKw(
       model: 'hr.attendance',
       method: 'create',
-      args: [
-        {'employee_id': employeeId, 'check_in': ts},
-      ],
+      args: [vals],
     );
     if (result is num) return result.toInt();
     if (result is List && result.isNotEmpty && result.first is num) {
@@ -136,14 +154,49 @@ class OdooProvider {
     throw Exception('Không nhận được id attendance từ máy chủ');
   }
 
-  Future<bool> checkOutAttendance(int attendanceId) async {
+  Future<bool> checkOutAttendance(
+    int attendanceId, {
+    Uint8List? faceImage,
+    double? matchScore,
+  }) async {
     final ts = formatOdooDateTime(DateTime.now());
+    final vals = <String, dynamic>{'check_out': ts};
+    if (faceImage != null) {
+      vals['face_image_out'] = base64Encode(faceImage);
+    }
+    if (matchScore != null) {
+      vals['face_match_score_out'] = matchScore;
+      vals['face_verified_out'] =
+          matchScore >= FaceConstants.matchThreshold;
+    }
     final result = await callKw(
       model: 'hr.attendance',
       method: 'write',
       args: [
         [attendanceId],
-        {'check_out': ts},
+        vals,
+      ],
+    );
+    return result == true;
+  }
+
+  Future<bool> enrollFace({
+    required int employeeId,
+    required Uint8List imageBytes,
+    required List<double> embedding,
+  }) async {
+    final imageB64 = base64Encode(imageBytes);
+    final embeddingJson = jsonEncode(embedding);
+    final result = await callKw(
+      model: 'hr.employee',
+      method: 'write',
+      args: [
+        [employeeId],
+        {
+          'face_enrolled_image': imageB64,
+          'face_embedding': embeddingJson,
+          'face_enrolled_at': formatOdooDateTime(DateTime.now()),
+        },
       ],
     );
     return result == true;
@@ -201,6 +254,9 @@ class OdooProvider {
           'department_id',
           'mobile_phone',
           'work_phone',
+          'face_enrolled',
+          'face_embedding',
+          'face_enrolled_at',
         ],
         'limit': 1,
       },

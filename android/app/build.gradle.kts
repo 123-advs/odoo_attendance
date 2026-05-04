@@ -20,10 +20,7 @@ android {
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
         applicationId = "com.tcs.odoo_attendance"
-        // You can update the following values to match your application needs.
-        // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
@@ -37,6 +34,29 @@ android {
             signingConfig = signingConfigs.getByName("debug")
         }
     }
+
+    // tflite_flutter requires that the .tflite model asset is NOT
+    // compressed, otherwise the interpreter can't mmap it at runtime.
+    androidResources {
+        noCompress.add("tflite")
+    }
+
+    // Some Android distributions can't load TFLite's native .so when
+    // packed in legacy mode. Forcing legacy packaging keeps the .so
+    // files extractable so dlopen() finds them.
+    packaging {
+        jniLibs {
+            useLegacyPackaging = true
+        }
+    }
+}
+
+dependencies {
+    // Force the bundled native libtensorflowlite_jni.so. tflite_flutter
+    // 0.11.0 should pull this transitively, but on some Gradle setups
+    // the native artifact isn't picked up — declaring it explicitly is
+    // a safe redundancy.
+    implementation("org.tensorflow:tensorflow-lite:2.16.1")
 }
 
 flutter {
