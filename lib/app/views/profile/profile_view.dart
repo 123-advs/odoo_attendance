@@ -106,32 +106,21 @@ class ProfileView extends GetView<ProfileController> {
                     child: _DetailsCard(controller: controller),
                   );
                 }),
-                Obx(() => _MenuSection(
-                      title: 'Tài khoản',
-                      items: [
-                        _MenuItemData(
-                          icon: Icons.person_outline_rounded,
-                          label: 'Thông tin cá nhân',
-                          onTap: () =>
-                              Get.toNamed(AppRoutes.personalInfo),
-                        ),
-                        _MenuItemData(
-                          icon: Icons.lock_outline_rounded,
-                          label: 'Đổi mật khẩu',
-                          onTap: () =>
-                              Get.toNamed(AppRoutes.changePassword),
-                        ),
-                        _MenuItemData(
-                          icon: Icons.fingerprint_rounded,
-                          label: 'Quản lý dữ liệu khuôn mặt',
-                          trailing: controller.faceEnrolled.value
-                              ? 'Đã đăng ký'
-                              : null,
-                          onTap: () =>
-                              Get.toNamed(AppRoutes.faceEnroll),
-                        ),
-                      ],
-                    )),
+                _MenuSection(
+                  title: 'Tài khoản',
+                  items: [
+                    _MenuItemData(
+                      icon: Icons.person_outline_rounded,
+                      label: 'Thông tin cá nhân',
+                      onTap: () => Get.toNamed(AppRoutes.personalInfo),
+                    ),
+                    _MenuItemData(
+                      icon: Icons.lock_outline_rounded,
+                      label: 'Đổi mật khẩu',
+                      onTap: () => Get.toNamed(AppRoutes.changePassword),
+                    ),
+                  ],
+                ),
                 SizedBox(height: 16.h),
                 _MenuSection(
                   title: 'Cài đặt',

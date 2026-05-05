@@ -43,15 +43,14 @@ dependencies:
   shared_preferences: ^2.5.5
   flutter_secure_storage: ^10.0.0    # tokens, session id
 
-  # Camera + on-device face detection (Android)
-  camera: ^0.12.0+1
-  google_mlkit_face_detection: ^0.13.2
-  image: ^4.8.0                       # crop / resize face bitmaps
-  tflite_flutter: ^0.11.0             # MobileFaceNet inference for face matching
+  # Image processing (re-encode avatar bytes to PNG for Android decoder compat)
+  image: ^4.8.0
 
   # Location
   geolocator: ^14.0.2                 # GPS coordinates + accuracy
   geocoding: ^4.0.0                   # reverse geocode coords -> address
+  flutter_map: ^7.0.2                 # OSM-based map widget (no API key)
+  latlong2: ^0.9.0                    # LatLng type for flutter_map
 
   # Runtime permissions (camera, location, notification)
   permission_handler: ^12.0.1
@@ -93,7 +92,6 @@ flutter:
     - assets/lottie/
     - assets/images/
     - assets/icons/
-    - assets/models/
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

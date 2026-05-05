@@ -1,14 +1,11 @@
-import 'dart:convert';
-import 'dart:typed_data';
-
 import 'package:dio/dio.dart';
 import 'package:get/get.dart' hide FormData, MultipartFile, Response;
 
 import '../../core/constants/api_constants.dart';
-import '../../core/constants/face_constants.dart';
 import '../../services/api_service.dart';
 import '../../services/storage_service.dart';
 import '../models/attendance_model.dart';
+import '../models/company_config.dart';
 import '../models/employee_model.dart';
 
 class OdooProvider {
@@ -126,21 +123,18 @@ class OdooProvider {
 
   Future<int> checkInAttendance(
     int employeeId, {
-    Uint8List? faceImage,
-    double? matchScore,
+    double? latitude,
+    double? longitude,
   }) async {
     final ts = formatOdooDateTime(DateTime.now());
     final vals = <String, dynamic>{
       'employee_id': employeeId,
       'check_in': ts,
     };
-    if (faceImage != null) {
-      vals['face_image_in'] = base64Encode(faceImage);
-    }
-    if (matchScore != null) {
-      vals['face_match_score_in'] = matchScore;
-      vals['face_verified_in'] =
-          matchScore >= FaceConstants.matchThreshold;
+    if (latitude != null && longitude != null) {
+      vals['in_latitude'] = latitude;
+      vals['in_longitude'] = longitude;
+      vals['in_mode'] = 'manual';
     }
     final result = await callKw(
       model: 'hr.attendance',
@@ -156,18 +150,15 @@ class OdooProvider {
 
   Future<bool> checkOutAttendance(
     int attendanceId, {
-    Uint8List? faceImage,
-    double? matchScore,
+    double? latitude,
+    double? longitude,
   }) async {
     final ts = formatOdooDateTime(DateTime.now());
     final vals = <String, dynamic>{'check_out': ts};
-    if (faceImage != null) {
-      vals['face_image_out'] = base64Encode(faceImage);
-    }
-    if (matchScore != null) {
-      vals['face_match_score_out'] = matchScore;
-      vals['face_verified_out'] =
-          matchScore >= FaceConstants.matchThreshold;
+    if (latitude != null && longitude != null) {
+      vals['out_latitude'] = latitude;
+      vals['out_longitude'] = longitude;
+      vals['out_mode'] = 'manual';
     }
     final result = await callKw(
       model: 'hr.attendance',
@@ -180,26 +171,51 @@ class OdooProvider {
     return result == true;
   }
 
-  Future<bool> enrollFace({
-    required int employeeId,
-    required Uint8List imageBytes,
-    required List<double> embedding,
-  }) async {
-    final imageB64 = base64Encode(imageBytes);
-    final embeddingJson = jsonEncode(embedding);
-    final result = await callKw(
-      model: 'hr.employee',
-      method: 'write',
+  /// Read the current user's company GPS anchor + radius. Returns null
+  /// if the user has no employee link (rare) or the company hasn't
+  /// been configured yet (`isConfigured == false`).
+  ///
+  /// Two RPCs because Odoo doesn't let you pull related fields in a
+  /// single read: first get the user's `company_id`, then read the
+  /// company row.
+  Future<CompanyConfig?> fetchCompanyConfig() async {
+    final uid = _storage.userId;
+    if (uid == null) return null;
+
+    final users = await callKw(
+      model: 'res.users',
+      method: 'read',
       args: [
-        [employeeId],
-        {
-          'face_enrolled_image': imageB64,
-          'face_embedding': embeddingJson,
-          'face_enrolled_at': formatOdooDateTime(DateTime.now()),
-        },
+        [uid],
       ],
+      kwargs: {
+        'fields': ['company_id'],
+      },
     );
-    return result == true;
+    if (users is! List || users.isEmpty) return null;
+    final companyField =
+        (users.first as Map<String, dynamic>)['company_id'];
+    if (companyField is! List || companyField.length < 2) return null;
+    final companyId = (companyField.first as num).toInt();
+
+    final companies = await callKw(
+      model: 'res.company',
+      method: 'read',
+      args: [
+        [companyId],
+      ],
+      kwargs: {
+        'fields': [
+          'attendance_latitude',
+          'attendance_longitude',
+          'attendance_radius',
+        ],
+      },
+    );
+    if (companies is! List || companies.isEmpty) return null;
+    return CompanyConfig.fromJson(
+      companies.first as Map<String, dynamic>,
+    );
   }
 
   Future<bool> updateEmployee(int employeeId, Map<String, dynamic> values) async {
@@ -254,9 +270,6 @@ class OdooProvider {
           'department_id',
           'mobile_phone',
           'work_phone',
-          'face_enrolled',
-          'face_embedding',
-          'face_enrolled_at',
         ],
         'limit': 1,
       },

@@ -7,6 +7,7 @@ import 'package:image/image.dart' as img;
 import 'package:package_info_plus/package_info_plus.dart';
 
 import '../../core/theme/app_colors.dart';
+import '../../data/models/company_config.dart';
 import '../../data/providers/odoo_provider.dart';
 import '../../routes/app_routes.dart';
 import '../../services/storage_service.dart';
@@ -34,10 +35,11 @@ class ProfileController extends GetxController {
   final phone = ''.obs;
   final avatarBytes = Rxn<Uint8List>();
 
-  // Face ID state mirrored from hr.employee.
-  final faceEnrolled = false.obs;
-  final faceEmbedding = Rxn<List<double>>();
-  final faceEnrolledAt = Rxn<DateTime>();
+  /// Company-level GPS anchor + radius. Null until first successful
+  /// fetch, or when HR hasn't configured the anchor yet
+  /// (`!isConfigured`). Consumers (HomeController) should guard before
+  /// opening the location-verify screen.
+  final companyConfig = Rxn<CompanyConfig>();
 
   final isLoading = true.obs;
   final loadError = RxnString();
@@ -65,6 +67,11 @@ class ProfileController extends GetxController {
   Future<void> refreshProfile() async {
     isLoading.value = true;
     loadError.value = null;
+    // Pull company config in parallel with employee fetch — failure is
+    // tolerable (HR may not have configured anchor yet), and we don't
+    // want a flaky company read to block profile UI.
+    unawaited(_refreshCompanyConfig());
+
     try {
       final emp = await _provider.fetchCurrentEmployee();
       if (emp != null) {
@@ -74,17 +81,11 @@ class ProfileController extends GetxController {
         role.value = emp.jobTitle ?? 'Nhân viên';
         department.value = emp.department ?? '';
         phone.value = emp.mobilePhone ?? '';
-        faceEnrolled.value = emp.faceEnrolled;
-        faceEmbedding.value = emp.faceEmbedding;
-        faceEnrolledAt.value = emp.faceEnrolledAt;
         // Fetch + transcode avatar in background so the UI shows other fields immediately.
         unawaited(_fetchAvatar(emp.id));
         return;
       }
       employeeId.value = null;
-      faceEnrolled.value = false;
-      faceEmbedding.value = null;
-      faceEnrolledAt.value = null;
 
       final user = await _provider.fetchCurrentUser();
       if (user != null) {
@@ -109,6 +110,21 @@ class ProfileController extends GetxController {
       loadError.value = 'Không tải được thông tin nhân viên';
     } finally {
       isLoading.value = false;
+    }
+  }
+
+  Future<void> _refreshCompanyConfig() async {
+    try {
+      final cfg = await _provider.fetchCompanyConfig();
+      // Treat unconfigured (lat == lng == 0) as "no anchor available".
+      companyConfig.value = (cfg != null && cfg.isConfigured) ? cfg : null;
+      debugPrint(
+          '[Profile] companyConfig anchor=(${cfg?.anchorLatitude}, ${cfg?.anchorLongitude}), '
+          'radius=${cfg?.radiusMeters}m, configured=${cfg?.isConfigured}');
+    } catch (e, st) {
+      debugPrint('[Profile] _refreshCompanyConfig failed: $e');
+      debugPrintStack(stackTrace: st);
+      companyConfig.value = null;
     }
   }
 

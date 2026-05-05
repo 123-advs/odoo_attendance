@@ -6,6 +6,5 @@ abstract class AppRoutes {
   static const checkIn = '/check-in';
   static const personalInfo = '/personal-info';
   static const changePassword = '/change-password';
-  static const faceEnroll = '/face-enroll';
-  static const faceCapture = '/face-capture';
+  static const locationVerify = '/location-verify';
 }
